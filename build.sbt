@@ -11,6 +11,9 @@ lazy val root = (project in file("."))
   .settings(
     libraryDependencies ++= Seq(
       zio,
+      `zio-config`,
+      `zio-config-typesafe`,
+      `zio-config-magnolia`,
       `zio-http`,
       `zio-streams`,
       `zio-test`,
