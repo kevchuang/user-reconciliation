@@ -1,21 +1,19 @@
 package com.contentsquare.server
 
 import com.contentsquare.config.HttpServerConfig
+import com.contentsquare.database.Database
+import com.contentsquare.endpoint.{EventEndpoint, PingEndpoint}
 import zio.http._
-import zio.http.model.Method
-import zio.{ZIO, ZLayer}
+import zio.{&, ZIO, ZLayer}
 
 object HttpServer {
 
-  val app: HttpApp[Any, Nothing] =
-    Http.collect[Request] { case Method.GET -> !! / "text" =>
-      Response.text("Hello World!")
-    }
-
-  def start: ZIO[Any with Server, Throwable, Unit] =
+  def start: ZIO[Any & Database & Server, Nothing, Unit] =
     for {
       _ <- ZIO.logInfo("Starting http server")
-      _ <- Server.serve(HttpServer.app)
+      _ <- Server.serve(
+        PingEndpoint() ++ EventEndpoint() @@ HttpAppMiddleware.debug
+      )
     } yield ()
 
   val layer: ZLayer[Any, Throwable, Server] =

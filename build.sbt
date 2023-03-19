@@ -10,6 +10,9 @@ lazy val root = (project in file("."))
   .settings(standardSettings)
   .settings(
     libraryDependencies ++= Seq(
+      `circe-core`,
+      `circe-generic`,
+      `circe-parser`,
       zio,
       `zio-config`,
       `zio-config-typesafe`,
