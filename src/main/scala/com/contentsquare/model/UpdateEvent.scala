@@ -24,7 +24,7 @@ object UpdateEvent {
           if (updateEvent.userIds.nonEmpty) ZIO.unit
           else ZIO.fail(InvalidInput("At least one userId should be set in userIds field"))
         _ <- Database
-          .exists(updateEvent.id)
+          .existsEvent(updateEvent.id)
           .flatMap(exists => if (exists) ZIO.unit else ZIO.fail(InvalidInput("Event id doesn't exist")))
       } yield updateEvent
     }

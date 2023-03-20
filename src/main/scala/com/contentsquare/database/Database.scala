@@ -2,40 +2,33 @@ package com.contentsquare.database
 
 import com.contentsquare.error.DatabaseError
 import com.contentsquare.error.DatabaseError.InvalidInput
-import com.contentsquare.model.{Event, UpdateEvent}
+import com.contentsquare.model.{Event, UpdateEvent, UserEvent}
 import zio.{Task, UIO, ZIO}
 
 import java.util.UUID
 
 trait Database {
-  def exists(id: UUID): UIO[Boolean]
+  def existsEvent(id: UUID): UIO[Boolean]
 
-  def getAll: Task[List[Event]]
+  def getUserEvents: UIO[List[UserEvent]]
 
-  def get(id: UUID): Task[Option[Event]]
+  def insertEvent(event: Event): UIO[Option[UserEvent]]
 
-  def put(event: Event): Task[Option[Event]]
-
-  def update(event: UpdateEvent): Task[Unit]
+  def updateEvent(updateEvent: UpdateEvent): Task[Option[UserEvent]]
 }
 
 object Database {
-  def exists(id: UUID): ZIO[Database, Nothing, Boolean] =
-    ZIO.serviceWithZIO[Database](_.exists(id))
+  def existsEvent(id: UUID): ZIO[Database, Nothing, Boolean] =
+    ZIO.serviceWithZIO[Database](_.existsEvent(id))
 
-  def getAll: ZIO[Database, Throwable, List[Event]] =
-    ZIO.serviceWithZIO[Database](_.getAll)
+  def getUserEvents: ZIO[Database, Nothing, List[UserEvent]] =
+    ZIO.serviceWithZIO[Database](_.getUserEvents)
 
-  def get(id: UUID): ZIO[Database, Throwable, Option[Event]] =
-    ZIO.serviceWithZIO[Database](_.get(id))
+  def insertEvent(event: Event): ZIO[Database, Nothing, Option[UserEvent]] =
+    ZIO.serviceWithZIO[Database](_.insertEvent(event))
 
-  def put(event: Event): ZIO[Database, DatabaseError, Option[Event]] =
+  def updateEvent(event: UpdateEvent): ZIO[Database, DatabaseError, Option[UserEvent]] =
     ZIO
-      .serviceWithZIO[Database](_.put(event))
-      .mapError(e => InvalidInput(e.getMessage))
-
-  def update(event: UpdateEvent): ZIO[Database, DatabaseError, Unit] =
-    ZIO
-      .serviceWithZIO[Database](_.update(event))
+      .serviceWithZIO[Database](_.updateEvent(event))
       .mapError(e => InvalidInput(e.getMessage))
 }

@@ -16,28 +16,9 @@ final case class Event(
   userIds: Set[String]
 )
 
-object Source extends Enumeration {
-  type Source = Value
-  val webpage, appscreen = Value
-}
-
-object EventType extends Enumeration {
-  type EventType = Value
-  val display, buy = Value
-}
-
 object Event {
-  implicit val eventTypeDecoder: Decoder[EventType.Value] =
-    Decoder.decodeEnumeration(EventType)
-  implicit val eventTypeEncoder: Encoder[EventType.Value] =
-    Encoder.encodeEnumeration(EventType)
-  implicit val sourceDecoder: Decoder[Source.Value]       =
-    Decoder.decodeEnumeration(Source)
-  implicit val sourceEncoder: Encoder[Source.Value]       =
-    Encoder.encodeEnumeration(Source)
-
-  implicit val eventDecoder: Decoder[Event] = deriveDecoder[Event]
-  implicit val eventEncoder: Encoder[Event] = deriveEncoder[Event]
+  implicit val decoder: Decoder[Event] = deriveDecoder[Event]
+  implicit val encoder: Encoder[Event] = deriveEncoder[Event]
 
   implicit class EventOps(event: Event) {
     def validateEvent: ZIO[Any, InvalidInput, Event] =

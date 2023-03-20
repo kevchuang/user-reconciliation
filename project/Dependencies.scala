@@ -15,7 +15,6 @@ object Dependencies {
   val `zio-config-magnolia` = "dev.zio"  %% "zio-config-magnolia" % zioConfigVersion
   val `zio-config-typesafe` = "dev.zio"  %% "zio-config-typesafe" % zioConfigVersion
   val `zio-http`            = "dev.zio"  %% "zio-http"            % zioHttpVersion
-  val `zio-streams`         = "dev.zio"  %% "zio-streams"         % zioVersion
   val `zio-test`            = "dev.zio"  %% "zio-test"            % zioVersion % Test
   val `zio-test-sbt`        = "dev.zio"  %% "zio-test-sbt"        % zioVersion % Test
 }

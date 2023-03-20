@@ -22,21 +22,28 @@ object EventEndpoint {
 
   private def getEvent: ZIO[Database, Throwable, Response] =
     for {
-      events <- Database.getAll
+      events <- Database.getUserEvents
     } yield Response.json(events.asJson.noSpaces)
 
   private def insertEvent(request: Request): ZIO[Database, DatabaseError, Response] =
     for {
       event          <- parseBody[Event](request.body)
       validatedEvent <- event.validateEvent
-      _              <- Database.put(validatedEvent)
+      _              <- Database.insertEvent(validatedEvent)
+    } yield Response.ok
+
+  private def insertEvents(request: Request): ZIO[Database, DatabaseError, Response] =
+    for {
+      events          <- parseBody[List[Event]](request.body)
+      validatedEvents <- ZIO.collectAll(events.map(_.validateEvent))
+      _               <- ZIO.collectAll(validatedEvents.map(Database.insertEvent))
     } yield Response.ok
 
   private def updateEvent(request: Request): ZIO[Database, DatabaseError, Response] =
     for {
       event          <- parseBody[UpdateEvent](request.body)
       validatedEvent <- event.validateUpdateEvent
-      _              <- Database.update(validatedEvent)
+      _              <- Database.updateEvent(validatedEvent)
     } yield Response.ok
 
   def apply(): App[Database] =
@@ -44,6 +51,7 @@ object EventEndpoint {
       .collectZIO[Request] {
         case Method.GET -> !! / "event"              => getEvent
         case request @ Method.POST -> !! / "collect" => insertEvent(request)
+        case request @ Method.POST -> !! / "events"  => insertEvents(request)
         case request @ Method.POST -> !! / "update"  => updateEvent(request)
       }
       .mapError(_ => Response.ok)

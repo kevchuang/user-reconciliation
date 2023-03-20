@@ -1,9 +1,7 @@
 import BuildHelper._
 import Dependencies._
 
-ThisBuild / scalaVersion     := "2.13.10"
-ThisBuild / organization     := "com.contentsquare"
-ThisBuild / organizationName := "contentsquare"
+ThisBuild / scalaVersion := "2.13.10"
 
 lazy val root = (project in file("."))
   .settings(nameSettings)
@@ -18,8 +16,12 @@ lazy val root = (project in file("."))
       `zio-config-typesafe`,
       `zio-config-magnolia`,
       `zio-http`,
-      `zio-streams`,
       `zio-test`,
       `zio-test-sbt`
     )
   )
+
+enablePlugins(JavaAppPackaging)
+enablePlugins(DockerPlugin)
+
+dockerBaseImage := "adoptopenjdk:11.0.7_10-jre-hotspot"
