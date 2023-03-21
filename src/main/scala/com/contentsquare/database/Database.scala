@@ -14,7 +14,10 @@ trait Database {
 
   def insertEvent(event: Event): UIO[Option[UserEvent]]
 
-  def updateEvent(updateEvent: UpdateEvent): Task[Option[UserEvent]]
+  def updateEvent(updateEvent: UpdateEvent): Task[Option[Event]]
+
+  def getUserEventsWithoutList: UIO[Iterable[UserEvent]]
+
 }
 
 object Database {
@@ -27,8 +30,11 @@ object Database {
   def insertEvent(event: Event): ZIO[Database, Nothing, Option[UserEvent]] =
     ZIO.serviceWithZIO[Database](_.insertEvent(event))
 
-  def updateEvent(event: UpdateEvent): ZIO[Database, DatabaseError, Option[UserEvent]] =
+  def updateEvent(event: UpdateEvent): ZIO[Database, DatabaseError, Option[Event]] =
     ZIO
       .serviceWithZIO[Database](_.updateEvent(event))
       .mapError(e => InvalidInput(e.getMessage))
+
+  def getUserEventsWithoutList: ZIO[Database, Nothing, Iterable[UserEvent]] =
+    ZIO.serviceWithZIO[Database](_.getUserEventsWithoutList)
 }

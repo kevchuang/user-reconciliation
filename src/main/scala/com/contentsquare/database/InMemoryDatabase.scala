@@ -40,12 +40,12 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], UserEve
     for {
       userEventFromEvent    <- createUserEventFromEvent(event)
       linkedUserEvents      <- getLinkedUserEvents(event.userIds)
-      _                     <- removeAll(linkedUserEvents.keys).fork
+      _                     <- removeAll(linkedUserEvents.keys)
       mergedUserEventsFiber <- UserEvent
         .mergeUserEvents(linkedUserEvents.values.toList :+ userEventFromEvent)
-        .fork
-      userEventsToAdd       <- mergedUserEventsFiber.join
-    } yield database.put(userEventsToAdd.linkedUserIds, userEventsToAdd)
+
+//      userEventsToAdd       <- mergedUserEventsFiber.join
+    } yield database.put(mergedUserEventsFiber.linkedUserIds, mergedUserEventsFiber)
 
   def getUpdatedUserEvent(userEvent: UserEvent, updateEvent: UpdateEvent): Task[UserEvent] =
     ZIO.attempt {
@@ -60,14 +60,32 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], UserEve
       )
     }
 
-  def updateEvent(updateEvent: UpdateEvent): Task[Option[UserEvent]] =
-    for {
-      userEvent           <- getUserEventWithEventId(updateEvent.id)
-      _                   <- ZIO.succeed(database.remove(userEvent._1)).fork
-      getUpdatedUserEvent <- getUpdatedUserEvent(userEvent._2, updateEvent).fork
-      updatedUserEvent    <- getUpdatedUserEvent.join
-    } yield database.put(updatedUserEvent.linkedUserIds, updatedUserEvent)
+  def removeEventFromUserEvent(userEvent: UserEvent, eventId: UUID): ZIO[Any, Nothing, (Set[String], UserEvent)] =
+    ZIO.succeed {
+      val userIds       = userEvent.events(eventId).userIds
+      val linkedUserIds = userEvent.linkedUserIds.removedAll(userIds)
+      val cleanedEvents = userEvent.events.removed(eventId)
+      (
+        linkedUserIds,
+        userEvent.copy(
+          linkedUserIds = linkedUserIds,
+          events = cleanedEvents,
+          sources = cleanedEvents.values.map(_.source).toSet
+        )
+      )
+    }
 
+  def updateEvent(updateEvent: UpdateEvent): Task[Option[Event]] =
+    for {
+      userEvent       <- getUserEventWithEventId(updateEvent.id)
+      event           <- ZIO.succeed(userEvent._2.events(updateEvent.id))
+      _               <- ZIO.succeed(database.remove(userEvent._1))
+      updatedEvent    <- ZIO.succeed(event.copy(userIds = updateEvent.userIds))
+      eventsToProcess <- ZIO.succeed(userEvent._2.events.removed(updateEvent.id).values.toList :+ updatedEvent)
+      _               <- ZIO.collectAll(eventsToProcess.map(insertEvent))
+    } yield Some(updatedEvent)
+
+  override def getUserEventsWithoutList: UIO[Iterable[UserEvent]] = ZIO.succeed(database.values)
 }
 
 object InMemoryDatabase {

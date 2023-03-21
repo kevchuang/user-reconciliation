@@ -20,8 +20,3 @@ lazy val root = (project in file("."))
       `zio-test-sbt`
     )
   )
-
-enablePlugins(JavaAppPackaging)
-enablePlugins(DockerPlugin)
-
-dockerBaseImage := "adoptopenjdk:11.0.7_10-jre-hotspot"

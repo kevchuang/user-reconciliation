@@ -46,6 +46,13 @@ object EventEndpoint {
       _              <- Database.updateEvent(validatedEvent)
     } yield Response.ok
 
+  private def updateEvents(request: Request): ZIO[Database, DatabaseError, Response] =
+    for {
+      events         <- parseBody[List[UpdateEvent]](request.body)
+      validatedEvent <- ZIO.collectAll(events.map(_.validateUpdateEvent))
+      _              <- ZIO.collectAll(validatedEvent.map(Database.updateEvent))
+    } yield Response.ok
+
   def apply(): App[Database] =
     Http
       .collectZIO[Request] {
@@ -53,6 +60,7 @@ object EventEndpoint {
         case request @ Method.POST -> !! / "collect" => insertEvent(request)
         case request @ Method.POST -> !! / "events"  => insertEvents(request)
         case request @ Method.POST -> !! / "update"  => updateEvent(request)
+        case request @ Method.POST -> !! / "updates" => updateEvents(request)
       }
       .mapError(_ => Response.ok)
 

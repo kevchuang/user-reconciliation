@@ -22,7 +22,7 @@ object MetricsEndpoint {
       uniqueUsers      <- ZIO.succeed(userEvents.length)
       bouncedUsers     <- ZIO.succeed(
         userEvents.foldLeft(0L)((acc, userEvent) =>
-          if (userEvent.events.size == 1 && userEvent.events.count(_._2.event == EventType.display) == 1)
+          if (userEvent.events.size == 1 && userEvent.events.head._2.event == EventType.display)
             acc + 1
           else
             acc
@@ -36,13 +36,29 @@ object MetricsEndpoint {
             acc
         )
       )
-    } yield Response.json(
-      Metrics(
-        uniqueUsers = uniqueUsers.toLong,
-        bouncedUsers = bouncedUsers,
-        crossDeviceUsers = crossDeviceUsers
-      ).asJson.noSpaces
-    )
+    } yield {
+//      val events = userEvents.flatMap(_.events.values)
+////      val users  = events.map(_.userIds).toSet
+////      val ids    = users.map { u =>
+////        users.foldLeft(u)((acc, ids) =>
+////          if (acc.intersect(ids).nonEmpty)
+////            acc.union(ids)
+////          else
+////            acc
+////        )
+////      }
+//      val eventIds = events.map(_.id).toSet
+//      println(s"event Ids = ${eventIds.size} ")
+//      eventIds.foreach(println)
+
+      Response.json(
+        Metrics(
+          uniqueUsers = uniqueUsers.toLong,
+          bouncedUsers = bouncedUsers,
+          crossDeviceUsers = crossDeviceUsers
+        ).asJson.noSpaces
+      )
+    }
 
   def apply(): App[Database] =
     Http
