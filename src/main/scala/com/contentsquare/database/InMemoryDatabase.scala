@@ -1,6 +1,6 @@
 package com.contentsquare.database
 import com.contentsquare.model.{Event, UpdateEvent, UserEvent}
-import zio.{Task, UIO, ZIO, ZLayer}
+import zio._
 
 import java.util.UUID
 import scala.collection.mutable
@@ -43,8 +43,6 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], UserEve
       _                     <- removeAll(linkedUserEvents.keys)
       mergedUserEventsFiber <- UserEvent
         .mergeUserEvents(linkedUserEvents.values.toList :+ userEventFromEvent)
-
-//      userEventsToAdd       <- mergedUserEventsFiber.join
     } yield database.put(mergedUserEventsFiber.linkedUserIds, mergedUserEventsFiber)
 
   def getUpdatedUserEvent(userEvent: UserEvent, updateEvent: UpdateEvent): Task[UserEvent] =
@@ -75,6 +73,7 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], UserEve
       )
     }
 
+
   def updateEvent(updateEvent: UpdateEvent): Task[Option[Event]] =
     for {
       userEvent       <- getUserEventWithEventId(updateEvent.id)
@@ -85,7 +84,6 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], UserEve
       _               <- ZIO.collectAll(eventsToProcess.map(insertEvent))
     } yield Some(updatedEvent)
 
-  override def getUserEventsWithoutList: UIO[Iterable[UserEvent]] = ZIO.succeed(database.values)
 }
 
 object InMemoryDatabase {

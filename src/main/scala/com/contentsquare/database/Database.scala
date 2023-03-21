@@ -16,8 +16,7 @@ trait Database {
 
   def updateEvent(updateEvent: UpdateEvent): Task[Option[Event]]
 
-  def getUserEventsWithoutList: UIO[Iterable[UserEvent]]
-
+  def getUserEventWithEventId(eventId: UUID): Task[(Set[String], UserEvent)]
 }
 
 object Database {
@@ -35,6 +34,8 @@ object Database {
       .serviceWithZIO[Database](_.updateEvent(event))
       .mapError(e => InvalidInput(e.getMessage))
 
-  def getUserEventsWithoutList: ZIO[Database, Nothing, Iterable[UserEvent]] =
-    ZIO.serviceWithZIO[Database](_.getUserEventsWithoutList)
+  def getUserEventWithEventId(eventId: UUID): ZIO[Database, DatabaseError, (Set[String], UserEvent)] =
+    ZIO
+      .serviceWithZIO[Database](_.getUserEventWithEventId(eventId))
+      .mapError(e => InvalidInput(e.getMessage))
 }
