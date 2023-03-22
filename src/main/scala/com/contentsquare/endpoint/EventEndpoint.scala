@@ -9,8 +9,8 @@ import io.circe.parser.decode
 import io.circe.syntax._
 import zio._
 import zio.http._
-import zio.http.model.Method
-import zio.stream.{ZSink, ZStream}
+import zio.http.model.{HTTP_CHARSET, Method}
+import zio.stream.ZSink
 
 object EventEndpoint {
 
@@ -26,7 +26,7 @@ object EventEndpoint {
       events <- Database.getUserEvents
     } yield Response.json(events.asJson.noSpaces)
 
-  private def insertEvent(request: Request): ZIO[Database, DatabaseError, Response] =
+  def insertEvent(request: Request): ZIO[Database, DatabaseError, Response] =
     for {
       event          <- parseBody[Event](request.body)
       validatedEvent <- event.validateEvent
@@ -40,7 +40,7 @@ object EventEndpoint {
       _               <- ZIO.collectAll(validatedEvents.map(Database.insertEvent))
     } yield Response.ok
 
-  private def updateEvent(request: Request): ZIO[Database, DatabaseError, Response] =
+  def updateEvent(request: Request): ZIO[Database, DatabaseError, Response] =
     for {
       event          <- parseBody[UpdateEvent](request.body)
       validatedEvent <- event.validateUpdateEvent
@@ -54,34 +54,45 @@ object EventEndpoint {
       _              <- ZIO.collectAll(validatedEvent.map(Database.updateEvent))
     } yield Response.ok
 
-//  private def insertEventStream(request: Request): ZIO[Database, DatabaseError, Response] =
-//    for {
-//      event          <- parseBody[Event](request.body)
-//      validatedEvent <- event.validateEvent
-//      _              <- Database.insertEventStream(validatedEvent)
-//    } yield Response.ok
-
-  val queue: UIO[Queue[Request]] = Queue.bounded[Request](1000)
-
   def apply(): App[Database] = {
-    val sink: ZSink[Database, DatabaseError, Request, Request, Response] =
+    val sink: ZSink[Database, DatabaseError, Chunk[Byte], Chunk[Byte], Response] =
       ZSink
-        .take[Request](1)
-        .map(_.headOption.getOrElse(throw new Exception("Error")))
-        .mapZIO {
-          case request @ Method.POST -> !! / "collect" => insertEvent(request)
-          case request @ Method.POST -> !! / "update"  => updateEvent(request)
-          case _                                       => ZIO.succeed(Response.ok)
+        .take(1)
+        .mapZIO { bytes =>
+          (for {
+            event <- ZIO.fromEither(decode[Event](bytes.flatten.asString(HTTP_CHARSET)))
+            _     <- Database.insertEvent(event)
+          } yield Response.ok).logError
+            .mapError(_ => InvalidInput("Invalid output"))
+        }
+
+    val sinkUpdate: ZSink[Database, DatabaseError, Chunk[Byte], Chunk[Byte], Response] =
+      ZSink
+        .take(1)
+        .mapZIO { bytes =>
+          (for {
+            event <- ZIO.fromEither(decode[UpdateEvent](bytes.flatten.asString(HTTP_CHARSET)))
+            _     <- Database.updateEvent(event)
+          } yield Response.ok).logError
+            .mapError(_ => InvalidInput("Invalid output"))
         }
 
     Http
       .collectZIO[Request] {
-        case request: Request if request.method == Method.POST =>
-        for {
-          q        <- queue
-          _        <- q.offer(request)
-          response <- ZStream.fromQueue(q).schedule(Schedule.spaced(10.microseconds)).run(sink)
-        } yield response
+        case Method.GET -> !! / "events"             => getEvent
+        case request @ Method.POST -> !! / "collect" =>
+          request
+            .body
+            .asStream
+            .chunks
+            .run(sink)
+        case request @ Method.POST -> !! / "update"  =>
+          request
+            .body
+            .asStream
+            .chunks
+            .schedule(Schedule.spaced(500.milliseconds))
+            .run(sinkUpdate)
       }
       .mapError(_ => Response.ok)
   }
