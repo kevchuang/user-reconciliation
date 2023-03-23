@@ -1,94 +1,96 @@
 package com.contentsquare.database
-import com.contentsquare.model.{Event, UpdateEvent, UserEvent}
+import com.contentsquare.model.{Event, UpdateEvent, User}
 import zio._
 
 import java.util.UUID
 import scala.collection.mutable
 
-final case class InMemoryDatabase(database: mutable.HashMap[Set[String], UserEvent]) extends Database {
-  def existsEvent(id: UUID): UIO[Boolean] =
-    ZIO.succeed(database.exists(userEvent => userEvent._2.events.contains(id)))
+final case class InMemoryDatabase(database: mutable.HashMap[Set[String], User]) extends Database {
 
-  def getUserEvents: UIO[List[UserEvent]] =
-    ZIO.succeed(database.values.toList)
-
-  def getLinkedUserEvents(userIds: Set[String]): ZIO[Any, Nothing, Map[Set[String], UserEvent]] =
+  private[database] def createUserWithSingleEvent(event: Event): UIO[User] =
     ZIO.succeed(
-      database
-        .filter(userEvent => userIds.intersect(userEvent._1).nonEmpty)
-        .toMap
-    )
-
-  def getUserEventWithEventId(eventId: UUID): ZIO[Any, Throwable, (Set[String], UserEvent)] =
-    ZIO
-      .fromOption(database.find(_._2.events.contains(eventId)))
-      .mapError(_ => new Exception(s"Event $eventId doesn't exist, cannot update"))
-
-  def createUserEventFromEvent(event: Event): UIO[UserEvent] =
-    ZIO.succeed(
-      UserEvent(
+      User(
         linkedUserIds = event.userIds,
-        events = Map(event.id -> event),
+        events = Set(event),
         sources = Set(event.source)
       )
     )
 
-  def removeAll(keys: Iterable[Set[String]]): ZIO[Any, Nothing, Unit] =
-    ZIO.succeed(keys.foreach(database.remove))
+  private[database] def getEventFromUser(user: User, eventId: UUID): Task[Event] =
+    ZIO
+      .fromOption(user.events.find(_.id == eventId))
+      .mapError(_ => throw new Exception("Event Id not found"))
 
-  def insertEvent(event: Event): ZIO[Any, Nothing, Option[UserEvent]] =
-    for {
-      userEventFromEvent    <- createUserEventFromEvent(event)
-      linkedUserEvents      <- getLinkedUserEvents(event.userIds)
-      _                     <- removeAll(linkedUserEvents.keys)
-      mergedUserEventsFiber <- UserEvent
-        .mergeUserEvents(linkedUserEvents.values.toList :+ userEventFromEvent)
-    } yield database.put(mergedUserEventsFiber.linkedUserIds, mergedUserEventsFiber)
-
-  def getUpdatedUserEvent(userEvent: UserEvent, updateEvent: UpdateEvent): Task[UserEvent] =
-    ZIO.attempt {
-      val eventToUpdate = userEvent.events(updateEvent.id)
-      val updatedEvent  = eventToUpdate.copy(userIds = updateEvent.userIds)
-
-      userEvent.copy(
-        linkedUserIds = userEvent.linkedUserIds
-          .removedAll(eventToUpdate.userIds)
-          .union(updateEvent.userIds),
-        events = userEvent.events.updated(eventToUpdate.id, updatedEvent)
+  private[database] def getLinkedUsers(userIds: Set[String]): ZIO[Any, Nothing, Map[Set[String], User]] =
+    ZIO
+      .succeed(
+        database
+          .filter(userEvent => userIds.intersect(userEvent._1).nonEmpty)
+          .toMap
       )
-    }
 
-  def removeEventFromUserEvent(userEvent: UserEvent, eventId: UUID): ZIO[Any, Nothing, (Set[String], UserEvent)] =
-    ZIO.succeed {
-      val userIds       = userEvent.events(eventId).userIds
-      val linkedUserIds = userEvent.linkedUserIds.removedAll(userIds)
-      val cleanedEvents = userEvent.events.removed(eventId)
-      (
-        linkedUserIds,
-        userEvent.copy(
-          linkedUserIds = linkedUserIds,
-          events = cleanedEvents,
-          sources = cleanedEvents.values.map(_.source).toSet
+  private[database] def getUserAssociatedToEventId(eventId: UUID): ZIO[Any, Throwable, (Set[String], User)] =
+    ZIO
+      .fromOption(database.find(_._2.events.exists(_.id == eventId)))
+      .mapError(_ => new Exception(s"Event $eventId doesn't exist, cannot update"))
+
+  private[database] def insertMultipleEvents(events: Set[Event]): UIO[Set[User]] =
+    ZIO
+      .collectAll(events.map(insertEvent))
+      .map(_.flatten)
+
+  private[database] def mergeUsers(users: List[User]): ZIO[Any, Nothing, User] =
+    ZIO.succeed(
+      users.foldLeft(User())((acc, userEvent) =>
+        acc.copy(
+          linkedUserIds = acc.linkedUserIds.union(userEvent.linkedUserIds),
+          events = acc.events ++ userEvent.events,
+          sources = acc.sources.union(userEvent.sources)
         )
       )
-    }
+    )
 
+  private[database] def removeUser(userId: Set[String]): ZIO[Any, Nothing, Option[User]] =
+    ZIO.succeed(database.remove(userId))
 
-  def updateEvent(updateEvent: UpdateEvent): Task[Option[Event]] =
+  private[database] def removeUsers(usersIds: Iterable[Set[String]]): ZIO[Any, Nothing, Unit] =
+    ZIO.succeed(usersIds.foreach(database.remove))
+
+  private[database] def updateEventValues(event: Event, updatedUserIds: Set[String]): UIO[Event] =
+    ZIO.succeed(event.copy(userIds = updatedUserIds))
+
+  override def existsEvent(id: UUID): UIO[Boolean] =
+    ZIO.succeed(
+      database.exists(user => user._2.events.exists(_.id == id))
+    )
+
+  override def getUsers: UIO[List[User]] =
+    ZIO.succeed(database.values.toList)
+
+  override def insertEvent(event: Event): ZIO[Any, Nothing, Option[User]] =
     for {
-      userEvent       <- getUserEventWithEventId(updateEvent.id)
-      event           <- ZIO.succeed(userEvent._2.events(updateEvent.id))
-      _               <- ZIO.succeed(database.remove(userEvent._1))
-      updatedEvent    <- ZIO.succeed(event.copy(userIds = updateEvent.userIds))
-      eventsToProcess <- ZIO.succeed(userEvent._2.events.removed(updateEvent.id).values.toList :+ updatedEvent)
-      _               <- ZIO.collectAll(eventsToProcess.map(insertEvent))
-    } yield Some(updatedEvent)
+      userWithSingleEvent <- createUserWithSingleEvent(event)
+      linkedUsers         <- getLinkedUsers(event.userIds)
+      _                   <- removeUsers(linkedUsers.keys)
+      mergedUsers         <- mergeUsers(linkedUsers.values.toList :+ userWithSingleEvent)
+    } yield database.put(mergedUsers.linkedUserIds, mergedUsers)
+
+  override def updateEvent(updateEvent: UpdateEvent): Task[List[User]] =
+    for {
+      userAssociated             <- getUserAssociatedToEventId(updateEvent.id)
+      _                          <- removeUser(userAssociated._1)
+      eventToUpdate              <- getEventFromUser(userAssociated._2, updateEvent.id)
+      eventWithUpdatedValues     <- updateEventValues(eventToUpdate, updateEvent.userIds)
+      usersWithReprocessedEvents <- insertMultipleEvents(
+        (userAssociated._2.events - eventToUpdate) + eventWithUpdatedValues
+      )
+    } yield usersWithReprocessedEvents.toList
 
 }
 
 object InMemoryDatabase {
 
   val layer: ZLayer[Any, Nothing, InMemoryDatabase] =
-    ZLayer.succeed(InMemoryDatabase(mutable.HashMap.empty[Set[String], UserEvent]))
+    ZLayer.succeed(InMemoryDatabase(mutable.HashMap.empty[Set[String], User]))
 
 }
