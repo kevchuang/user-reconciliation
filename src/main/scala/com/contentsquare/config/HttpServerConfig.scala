@@ -12,10 +12,17 @@ final case class HttpServerConfig(
 
 object HttpServerConfig {
 
+  /**
+   * Returns an effect that will read application.conf in resources path and
+   * produces a [[HttpServerConfig]]
+   */
   private[config] def loadConfig: IO[Config.Error, HttpServerConfig] =
     ConfigProvider.fromResourcePath
       .load(deriveConfig[HttpServerConfig])
 
+  /**
+   * Returns an effect that will load configuration file and produce a [[ServerConfig]]
+   */
   private[config] def createServerConfig: ZIO[Any, Config.Error, ServerConfig] =
     for {
       config <- loadConfig
@@ -26,6 +33,9 @@ object HttpServerConfig {
       )
     } yield ServerConfig.default.binding(config.host, config.port)
 
+  /**
+   * [[ServerConfig]] default layer
+   */
   val layer: ZLayer[Any, Config.Error, ServerConfig] =
     ZLayer.fromZIO(createServerConfig)
 

@@ -8,7 +8,7 @@ object BuildHelper extends ScalaSettings {
   def nameSettings = Seq(
     name             := "user-reconciliation",
     organization     := "com.contentsquare",
-    organizationName := "contentsquare",
+    organizationName := "contentsquare"
   )
 
   def standardSettings = Seq(
@@ -19,9 +19,11 @@ object BuildHelper extends ScalaSettings {
     ThisBuild / scalafixDependencies ++=
       List(
         "com.github.liancheng" %% "organize-imports" % "0.6.0",
-        "com.github.vovapolu"  %% "scaluzzi"         % "0.1.23",
+        "com.github.vovapolu"  %% "scaluzzi"         % "0.1.23"
       ),
     Test / parallelExecution               := true,
     ThisBuild / fork                       := true,
+    run / fork                             := true,
+    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
 }

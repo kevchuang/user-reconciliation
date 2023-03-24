@@ -9,18 +9,25 @@ import zio._
 
 object HttpServer {
 
-  private lazy val routes =
+  /**
+   * Routes that will be used in HttpServer.start
+   */
+  private lazy val routes: Http[Database & Parser, Response, Request, Response] =
     PingEndpoint() ++ EventEndpoint() ++ MetricsEndpoint()
 
+  /**
+   * Start a server binding on host and port indicated in
+   * resources/application.conf with specific routes defined in HttpServer.
+   */
   def start: ZIO[Any & Database & Server & Parser, Throwable, Unit] =
     for {
-      _      <- ZIO.logInfo("Starting http server")
-      server <- Server.serve(routes @@ HttpAppMiddleware.debug).fork
-      _      <- Console.readLine("Press ENTER to interrupt the server\n")
-      _      <- Console.printLine("Interrupting server")
-      _      <- server.interrupt
+      _ <- ZIO.logInfo("Starting http server")
+      _ <- Server.serve(routes @@ HttpAppMiddleware.debug)
     } yield ()
 
+  /**
+   * Server layer that load config to bind the server
+   */
   val layer: ZLayer[Any, Throwable, Server] =
     HttpServerConfig.layer >>> Server.live
 }
