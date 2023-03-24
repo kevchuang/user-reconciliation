@@ -1,7 +1,7 @@
 # Contentsquare Technical Assessment: User Reconciliation
 
 ## About the project
-***
+
 One of the main missions of Contentsquare's Data Engineering team is to build data pipelines that receive, transform,
 store and aggregate navigation events.
 
@@ -11,7 +11,7 @@ ecosystem using `zio`, `zio-http`, `zio-config` and `circe` for json (de)seriali
 
 
 ## Getting Started
-***
+
 ### Prerequisites
 
 To run this project you need to
@@ -35,7 +35,7 @@ To run unit tests, in a sbt shell run the command `test`
 
 
 ## Algorithms Explanation
-***
+
 User matching consists on identifying events that belongs to a user. Two events belong to the same user if they share
 the same at least one `userId`. I assume that a `User` is defined by a set of `userIds`, a set of `Event` and a set of `sources`:
 
@@ -77,7 +77,7 @@ Here are the steps done by the algorithm in order to retrieve metrics:
 
 
 ## To Discuss Further
-***
+
 **How would you turn this into a production-ready project ? What are the changes needed in the architecture and what are the deployments choices that you would make ?**
 
 I would implement a distributed event streaming platform that will receive the upcoming event (eg. Kafka). I would also define a data storage capable of ingesting real-time data.
