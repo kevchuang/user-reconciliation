@@ -1,10 +1,10 @@
 package com.contentsquare.model
 
 import com.contentsquare.database.Database
-import com.contentsquare.error.DatabaseError.InvalidInput
+import com.contentsquare.error.Errors.{DataNotFoundException, EmptyValueException}
+import io.circe.generic.semiauto._
 import io.circe.{Decoder, Encoder}
 import zio.ZIO
-import io.circe.generic.semiauto._
 
 import java.util.UUID
 
@@ -18,14 +18,15 @@ object UpdateEvent {
   implicit val encoder: Encoder[UpdateEvent] = deriveEncoder[UpdateEvent]
 
   implicit class UpdateEventOps(updateEvent: UpdateEvent) {
-    def validateUpdateEvent: ZIO[Database, InvalidInput, UpdateEvent] = {
+    def validateUpdateEvent: ZIO[Database, Throwable, UpdateEvent] = {
       for {
         _ <-
-          if (updateEvent.userIds.nonEmpty) ZIO.unit
-          else ZIO.fail(InvalidInput("At least one userId should be set in userIds field"))
-        _ <- Database
-          .existsEvent(updateEvent.id)
-          .flatMap(exists => if (exists) ZIO.unit else ZIO.fail(InvalidInput("Event id doesn't exist")))
+          if (updateEvent.userIds.nonEmpty)
+            ZIO.unit
+          else
+            ZIO.fail(EmptyValueException("At least one userId should be set in userIds field"))
+        existsEvent <- Database.existsEvent(updateEvent.id)
+          _ <- if (existsEvent) ZIO.unit else ZIO.fail(DataNotFoundException("Event id doesn't exist"))
       } yield updateEvent
     }
   }

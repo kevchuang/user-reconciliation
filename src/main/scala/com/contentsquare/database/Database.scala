@@ -1,7 +1,5 @@
 package com.contentsquare.database
 
-import com.contentsquare.error.DatabaseError
-import com.contentsquare.error.DatabaseError.InvalidInput
 import com.contentsquare.model.{Event, UpdateEvent, User}
 import zio.{Task, UIO, ZIO}
 
@@ -12,9 +10,9 @@ trait Database {
 
   def getUsers: UIO[List[User]]
 
-  def insertEvent(event: Event): UIO[Option[User]]
+  def insertEvent(event: Event): UIO[Unit]
 
-  def updateEvent(updateEvent: UpdateEvent): Task[List[User]]
+  def updateEvent(updateEvent: UpdateEvent): Task[Unit]
 }
 
 object Database {
@@ -24,11 +22,9 @@ object Database {
   def getUsers: ZIO[Database, Nothing, List[User]] =
     ZIO.serviceWithZIO[Database](_.getUsers)
 
-  def insertEvent(event: Event): ZIO[Database, Nothing, Option[User]] =
+  def insertEvent(event: Event): ZIO[Database, Nothing, Unit] =
     ZIO.serviceWithZIO[Database](_.insertEvent(event))
 
-  def updateEvent(event: UpdateEvent): ZIO[Database, DatabaseError, List[User]] =
-    ZIO
-      .serviceWithZIO[Database](_.updateEvent(event))
-      .mapError(e => InvalidInput(e.getMessage))
+  def updateEvent(event: UpdateEvent): ZIO[Database, Throwable, Unit] =
+    ZIO.serviceWithZIO[Database](_.updateEvent(event))
 }
