@@ -4,8 +4,8 @@ import com.contentsquare.database.{Database, InMemoryDatabase}
 import com.contentsquare.error.Errors.{DataNotFoundException, EmptyValueException}
 import com.contentsquare.utils.DataGenerator
 import zio.Scope
-import zio.test._
 import zio.test.Assertion._
+import zio.test._
 
 object UpdateEventSpec extends ZIOSpecDefault {
   override def spec: Spec[TestEnvironment with Scope, Any] =

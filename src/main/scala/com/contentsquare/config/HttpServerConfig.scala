@@ -21,7 +21,8 @@ object HttpServerConfig {
       .load(deriveConfig[HttpServerConfig])
 
   /**
-   * Returns an effect that will load configuration file and produce a [[ServerConfig]]
+   * Returns an effect that will load configuration file and produce a
+   * [[ServerConfig]]
    */
   private[config] def createServerConfig: ZIO[Any, Config.Error, ServerConfig] =
     for {

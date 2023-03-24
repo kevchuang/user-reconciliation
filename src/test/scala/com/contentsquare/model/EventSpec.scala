@@ -3,8 +3,8 @@ package com.contentsquare.model
 import com.contentsquare.error.Errors.EmptyValueException
 import com.contentsquare.utils.DataGenerator
 import zio.Scope
-import zio.test._
 import zio.test.Assertion._
+import zio.test._
 
 object EventSpec extends ZIOSpecDefault {
   override def spec: Spec[TestEnvironment with Scope, Any] =

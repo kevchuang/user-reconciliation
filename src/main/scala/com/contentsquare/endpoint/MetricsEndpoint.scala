@@ -2,10 +2,10 @@ package com.contentsquare.endpoint
 
 import com.contentsquare.database.Database
 import com.contentsquare.model.{EventType, Metrics, User}
-import zio._
-import zio.http.model.Method
-import zio.http._
 import io.circe.syntax._
+import zio._
+import zio.http._
+import zio.http.model.Method
 
 object MetricsEndpoint {
 

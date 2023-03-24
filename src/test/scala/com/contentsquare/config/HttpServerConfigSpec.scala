@@ -2,8 +2,8 @@ package com.contentsquare.config
 
 import zio.Scope
 import zio.http.ServerConfig
-import zio.test._
 import zio.test.Assertion._
+import zio.test._
 
 object HttpServerConfigSpec extends ZIOSpecDefault {
 

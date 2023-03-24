@@ -4,9 +4,10 @@ import zio.http._
 import zio.http.model.Method
 
 object PingEndpoint {
+
   /**
-   * Creates a [[Http]] that catches GET /ping request
-   * and produces a [[Response]] ok.
+   * Creates a [[Http]] that catches GET /ping request and produces a
+   * [[Response]] ok.
    */
   def apply(): Http[Any, Nothing, Request, Response] =
     Http.collect[Request] {

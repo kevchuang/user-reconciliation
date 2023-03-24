@@ -12,18 +12,11 @@ object BuildHelper extends ScalaSettings {
   )
 
   def standardSettings = Seq(
-    ThisBuild / scalaVersion               := scala213,
-    scalacOptions                          := baseSettings,
-    semanticdbVersion                      := scalafixSemanticdb.revision, // use Scalafix compatible version
-    ThisBuild / scalafixScalaBinaryVersion := CrossVersion.binaryScalaVersion(scala213),
-    ThisBuild / scalafixDependencies ++=
-      List(
-        "com.github.liancheng" %% "organize-imports" % "0.6.0",
-        "com.github.vovapolu"  %% "scaluzzi"         % "0.1.23"
-      ),
-    Test / parallelExecution               := true,
-    ThisBuild / fork                       := true,
-    run / fork                             := true,
+    ThisBuild / scalaVersion := scala213,
+    scalacOptions            := baseSettings,
+    Test / parallelExecution := true,
+    ThisBuild / fork         := true,
+    run / fork               := true,
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
 }

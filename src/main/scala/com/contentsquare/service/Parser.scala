@@ -3,8 +3,8 @@ package com.contentsquare.service
 import com.contentsquare.error.Errors.InvalidInputDataException
 import io.circe.Decoder
 import io.circe.parser.decode
-import zio.{ZIO, ZLayer}
 import zio.http.Body
+import zio.{ZIO, ZLayer}
 
 object Parser {
   type Parser = Service

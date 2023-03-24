@@ -21,9 +21,9 @@ object UpdateEvent {
 
     /**
      * Returns an effect that will validate the input UpdateEvent and produces
-     * an [[UpdateEvent]]. It may fail with [[EmptyValueException]] if userIds is empty
-     * and fail with [[DataNotFoundException]] if the event doesn't exist in
-     * Database.
+     * an [[UpdateEvent]]. It may fail with [[EmptyValueException]] if userIds
+     * is empty and fail with [[DataNotFoundException]] if the event doesn't
+     * exist in Database.
      */
     def validateUpdateEvent: ZIO[Database, Throwable, UpdateEvent] = {
       for {

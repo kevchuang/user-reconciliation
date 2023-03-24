@@ -4,8 +4,8 @@ import com.contentsquare.config.HttpServerConfig
 import com.contentsquare.database.Database
 import com.contentsquare.endpoint.{EventEndpoint, MetricsEndpoint, PingEndpoint}
 import com.contentsquare.service.Parser.Parser
-import zio.http._
 import zio._
+import zio.http._
 
 object HttpServer {
 

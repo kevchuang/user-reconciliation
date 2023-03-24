@@ -41,9 +41,9 @@ object MetricsEndpointSpec extends ZIOSpecDefault {
     suite("countCrossDeviceUsers")(
       test("should return total of users that have both sources (appscreen and webpage)") {
         val userAppScreen = DataGenerator.generateRandomUser(sources = Set(Source.appscreen))
-        val userWebpage = DataGenerator.generateRandomUser(sources = Set(Source.webpage))
-        val userBoth = DataGenerator.generateRandomUser(sources = Set(Source.appscreen, Source.webpage))
-        val users = List(
+        val userWebpage   = DataGenerator.generateRandomUser(sources = Set(Source.webpage))
+        val userBoth      = DataGenerator.generateRandomUser(sources = Set(Source.appscreen, Source.webpage))
+        val users         = List(
           userAppScreen,
           userWebpage,
           userBoth
@@ -59,10 +59,16 @@ object MetricsEndpointSpec extends ZIOSpecDefault {
   private lazy val getMetricsSuite =
     suite("getMetrics")(
       test("should return a Metrics in json format in Response object") {
-        val firstUserEventDisplay = DataGenerator.generateRandomEvent(source = Source.appscreen, event = EventType.display)
-        val firstUserEventBuy = DataGenerator.generateRandomEvent(userIds = firstUserEventDisplay.userIds + UUID.randomUUID.toString, source = Source.webpage, event = EventType.buy)
-        val secondUserEventDisplay     = DataGenerator.generateRandomEvent(source = Source.webpage, event = EventType.display)
-        val expected = Response.json(
+        val firstUserEventDisplay  =
+          DataGenerator.generateRandomEvent(source = Source.appscreen, event = EventType.display)
+        val firstUserEventBuy      = DataGenerator.generateRandomEvent(
+          userIds = firstUserEventDisplay.userIds + UUID.randomUUID.toString,
+          source = Source.webpage,
+          event = EventType.buy
+        )
+        val secondUserEventDisplay =
+          DataGenerator.generateRandomEvent(source = Source.webpage, event = EventType.display)
+        val expected               = Response.json(
           Metrics(
             uniqueUsers = 2,
             bouncedUsers = 1,
@@ -71,9 +77,9 @@ object MetricsEndpointSpec extends ZIOSpecDefault {
         )
 
         for {
-          _ <- Database.insertEvent(firstUserEventDisplay)
-          _ <- Database.insertEvent(firstUserEventBuy)
-          _ <- Database.insertEvent(secondUserEventDisplay)
+          _        <- Database.insertEvent(firstUserEventDisplay)
+          _        <- Database.insertEvent(firstUserEventBuy)
+          _        <- Database.insertEvent(secondUserEventDisplay)
           response <- MetricsEndpoint.getMetrics
         } yield assert(response)(equalTo(expected))
       }

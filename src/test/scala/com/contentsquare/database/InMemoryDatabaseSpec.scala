@@ -3,9 +3,9 @@ package com.contentsquare.database
 import com.contentsquare.error.Errors.DataNotFoundException
 import com.contentsquare.model.User
 import com.contentsquare.utils.DataGenerator
-import zio.{Scope, ZIO}
 import zio.test.Assertion._
 import zio.test._
+import zio.{Scope, ZIO}
 
 import java.util.UUID
 import scala.collection.mutable

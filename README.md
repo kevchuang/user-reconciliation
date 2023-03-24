@@ -88,3 +88,8 @@ Assuming that the cloud provider is Amazon Web Services, I would build a serverl
 
 Admitting that the business needs is to implement new API endpoints, I think that each developer can work on a different endpoint.
 We could also seperate the product related and performance related tasks but I believe that developers should be able to do any tasks !
+
+
+## Contact
+
+If you have any question, feel free to send me a mail at kchuang.pro@gmail.com !
