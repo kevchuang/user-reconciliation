@@ -28,7 +28,7 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], User]) 
   private[database] def getEventFromUser(user: User, eventId: UUID): Task[Event] =
     ZIO
       .fromOption(user.events.find(_.id == eventId))
-      .mapError(_ => DataNotFoundException("Event Id not found"))
+      .orElseFail(DataNotFoundException(s"Event $eventId not found"))
 
   /**
    * Returns an effect that produces a map of users that have at one userId in
@@ -48,17 +48,17 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], User]) 
    */
   private[database] def getUserAssociatedToEventId(eventId: UUID): ZIO[Any, Throwable, (Set[String], User)] =
     ZIO
-      .fromOption(database.find(_._2.events.exists(_.id == eventId)))
-      .mapError(_ => DataNotFoundException(s"Event $eventId doesn't exist"))
+      .fromOption(database.find { case (_, user) =>
+        user.events.exists(_.id == eventId)
+      })
+      .orElseFail(DataNotFoundException(s"Event $eventId doesn't exist"))
 
   /**
    * Returns an effect that insert multiple events by calling [[insertEvent]]
    * with the events given in input.
    */
   private[database] def insertMultipleEvents(events: Set[Event]): UIO[Unit] =
-    ZIO
-      .collectAll(events.map(insertEvent))
-      .map(_ => ())
+    ZIO.foreach(events)(insertEvent).unit
 
   /**
    * Returns an effect that produces an [[User]] that has merged all the users
@@ -102,7 +102,9 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], User]) 
    */
   override def existsEvent(id: UUID): UIO[Boolean] =
     ZIO.succeed(
-      database.exists(user => user._2.events.exists(_.id == id))
+      database.exists { case (_, user) =>
+        user.events.exists(_.id == id)
+      }
     )
 
   /**
