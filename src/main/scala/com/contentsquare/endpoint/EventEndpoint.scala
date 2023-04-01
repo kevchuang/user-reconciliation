@@ -69,13 +69,10 @@ object EventEndpoint {
       .collectZIO[Request] {
         // POST /collect
         case request @ Method.POST -> !! / "collect" =>
-          ZStream(request)
-            .run(insertEventSink())
-            .logError
+          insertEventIntoDatabase(request)
         // POST /update  - Scheduling update request to make sure that event is inserted first when receiving 1000 requests per second
         case request @ Method.POST -> !! / "update"  =>
           ZStream(request)
-            .schedule(Schedule.spaced(400.milliseconds))
             .run(updateEventSink())
             .retry(Schedule.fixed(3.milliseconds))
             .logError

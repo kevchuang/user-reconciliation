@@ -2,18 +2,17 @@ package com.contentsquare.model
 
 import com.contentsquare.error.Errors.EmptyValueException
 import com.contentsquare.model.EventType.EventType
+import com.contentsquare.model.Identifiers.{EventId, UserId}
 import com.contentsquare.model.Source.Source
 import io.circe._
 import io.circe.generic.semiauto._
 import zio.ZIO
 
-import java.util.UUID
-
 final case class Event(
-  id: UUID,
+  id: EventId,
   source: Source,
   event: EventType,
-  userIds: Set[String]
+  userIds: Set[UserId]
 )
 
 object Event {

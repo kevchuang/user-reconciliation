@@ -1,11 +1,13 @@
 package com.contentsquare.model
 
+import com.contentsquare.model.Identifiers.{UserId, UserIdentifier}
 import com.contentsquare.model.Source.Source
 import io.circe._
 import io.circe.generic.semiauto._
 
 final case class User(
-  linkedUserIds: Set[String] = Set.empty[String],
+  id: UserIdentifier,
+  linkedUserIds: Set[UserId] = Set.empty[UserId],
   events: Set[Event] = Set.empty[Event],
   sources: Set[Source] = Set.empty[Source]
 )

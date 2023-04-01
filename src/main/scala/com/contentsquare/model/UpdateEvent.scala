@@ -2,15 +2,14 @@ package com.contentsquare.model
 
 import com.contentsquare.database.Database
 import com.contentsquare.error.Errors.{DataNotFoundException, EmptyValueException}
+import com.contentsquare.model.Identifiers.{EventId, UserId}
 import io.circe.generic.semiauto._
 import io.circe.{Decoder, Encoder}
 import zio.ZIO
 
-import java.util.UUID
-
 final case class UpdateEvent(
-  id: UUID,
-  userIds: Set[String]
+  id: EventId,
+  userIds: Set[UserId]
 )
 
 object UpdateEvent {
@@ -31,7 +30,9 @@ object UpdateEvent {
           .fail(EmptyValueException("At least one userId should be set in userIds field"))
           .unless(updateEvent.userIds.nonEmpty)
         existsEvent <- Database.existsEvent(updateEvent.id)
-        _           <- ZIO.fail(DataNotFoundException("Event id doesn't exist")).unless(existsEvent)
+        _           <- ZIO
+          .fail(DataNotFoundException(s"Event ${updateEvent.id} doesn't exist"))
+          .unless(existsEvent)
       } yield updateEvent
     }
   }

@@ -5,7 +5,7 @@ import com.contentsquare.error.Errors.{DataNotFoundException, InvalidInputDataEx
 import com.contentsquare.service.Parser
 import com.contentsquare.utils.DataGenerator
 import io.circe.syntax._
-import zio.Scope
+import zio.{Scope, ZIO}
 import zio.http.model.Method
 import zio.http.{Body, Request, Response, URL}
 import zio.stream.ZStream
@@ -77,13 +77,14 @@ object EventEndpointSpec extends ZIOSpecDefault {
           body = Body.fromString(updateEvent.asJson.noSpaces)
         )
         val updatedEvent        = event.copy(userIds = updateEvent.userIds)
-        val expectedUpdatedUser = DataGenerator.generateUserFromEvent(updatedEvent)
 
         for {
           _                    <- Database.insertEvent(event)
           initialEventInserted <- Database.existsEvent(event.id)
           response             <- EventEndpoint.updateEventInDatabase(request)
-          users                <- Database.getUsers
+          users                <- Database.getUniqueUsers
+          expectedId           <- ZIO.fromOption(users.find(_.events.exists(_.id == event.id)).map(_.id))
+          expectedUpdatedUser  <- ZIO.succeed(DataGenerator.generateUserFromEvent(updatedEvent).copy(id = expectedId))
         } yield assertTrue(initialEventInserted) &&
           assert(users)(hasSameElements(List(expectedUpdatedUser))) &&
           assert(response)(equalTo(Response.ok))
@@ -120,13 +121,14 @@ object EventEndpointSpec extends ZIOSpecDefault {
           body = Body.fromString(updateEvent.asJson.noSpaces)
         )
         val updatedEvent        = event.copy(userIds = updateEvent.userIds)
-        val expectedUpdatedUser = DataGenerator.generateUserFromEvent(updatedEvent)
 
         for {
           _                    <- Database.insertEvent(event)
           initialEventInserted <- Database.existsEvent(event.id)
           response             <- ZStream.succeed(request).run(EventEndpoint.updateEventSink())
-          users                <- Database.getUsers
+          users                <- Database.getUniqueUsers
+          expectedId           <- ZIO.fromOption(users.find(_.events.exists(_.id == event.id)).map(_.id))
+          expectedUpdatedUser  <- ZIO.succeed(DataGenerator.generateUserFromEvent(updatedEvent).copy(id = expectedId))
         } yield assertTrue(initialEventInserted) &&
           assert(users)(hasSameElements(List(expectedUpdatedUser))) &&
           assert(response)(equalTo(Response.ok))

@@ -1,14 +1,19 @@
 package com.contentsquare.database
 
+import com.contentsquare.model.Identifiers.{EventId, Id, UserIdentifier}
 import com.contentsquare.model.{Event, UpdateEvent, User}
 import zio.{Task, UIO, ZIO}
 
-import java.util.UUID
+//import java.util.UUID
 
 trait Database {
-  def existsEvent(id: UUID): UIO[Boolean]
+//  def existsEventWithUUID(id: UUID): UIO[Boolean]
 
-  def getUsers: UIO[List[User]]
+  def existsEvent(id: EventId): UIO[Boolean]
+
+  def getLinks: UIO[Map[Id, UserIdentifier]]
+
+  def getUniqueUsers: UIO[List[User]]
 
   def insertEvent(event: Event): UIO[Unit]
 
@@ -16,11 +21,17 @@ trait Database {
 }
 
 object Database {
-  def existsEvent(id: UUID): ZIO[Database, Nothing, Boolean] =
+//  def existsEventWithUUID(id: UUID): ZIO[Database, Nothing, Boolean] =
+//    ZIO.serviceWithZIO[Database](_.existsEventWithUUID(id))
+
+  def existsEvent(id: EventId): ZIO[Database, Nothing, Boolean] =
     ZIO.serviceWithZIO[Database](_.existsEvent(id))
 
-  def getUsers: ZIO[Database, Nothing, List[User]] =
-    ZIO.serviceWithZIO[Database](_.getUsers)
+  def getLinks: ZIO[Database, Nothing, Map[Id, UserIdentifier]] =
+    ZIO.serviceWithZIO[Database](_.getLinks)
+
+  def getUniqueUsers: ZIO[Database, Nothing, List[User]] =
+    ZIO.serviceWithZIO[Database](_.getUniqueUsers)
 
   def insertEvent(event: Event): ZIO[Database, Nothing, Unit] =
     ZIO.serviceWithZIO[Database](_.insertEvent(event))

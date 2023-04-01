@@ -34,7 +34,10 @@ object MetricsEndpoint {
    */
   private[endpoint] def getMetrics: ZIO[Database, Throwable, Response] =
     for {
-      users            <- Database.getUsers
+      users            <- Database.getUniqueUsers
+      links            <- Database.getLinks
+      _                <- ZIO.succeed(println(s"users = $users"))
+      _                <- ZIO.succeed(println(s"links = $links"))
       bouncedUsers     <- countBouncedUsers(users)
       crossDeviceUsers <- countCrossDeviceUsers(users)
     } yield Response.json(

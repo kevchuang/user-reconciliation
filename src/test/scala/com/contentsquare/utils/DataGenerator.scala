@@ -2,8 +2,9 @@ package com.contentsquare.utils
 
 import com.contentsquare.database.InMemoryDatabase
 import com.contentsquare.model.EventType.EventType
+import com.contentsquare.model.Identifiers._
 import com.contentsquare.model.Source.Source
-import com.contentsquare.model.{Event, EventType, Source, UpdateEvent, User}
+import com.contentsquare.model._
 
 import java.util.UUID
 import scala.collection.mutable
@@ -13,16 +14,25 @@ object DataGenerator {
 
   def generateInMemoryDatabase(
     users: List[User] = List.empty[User]
-  ): InMemoryDatabase =
-    InMemoryDatabase(database =
-      users.foldLeft(mutable.HashMap.empty[Set[String], User])((acc, user) => acc.addOne(user.linkedUserIds -> user))
+  ): InMemoryDatabase = {
+    val links = mutable.HashMap.empty[Id, UserIdentifier]
+    val usersMap = users.foldLeft(mutable.HashMap.empty[UserIdentifier, User])((acc, user) => acc.addOne(user.id, user))
+    usersMap.foreach { case (userIdentifier, user) =>
+      user.linkedUserIds.foreach(userId => links.put(userId.asInstanceOf[Id], userIdentifier))
+      user.events.foreach(event => links.put(event.id.asInstanceOf[Id], userIdentifier))
+    }
+
+    InMemoryDatabase(
+      links = links,
+      users = usersMap
     )
+  }
 
   def generateRandomEvent(
-    id: UUID = UUID.randomUUID,
+    id: EventId = EventId(UUID.randomUUID),
     source: Source = Source(Random.nextInt(Source.maxId)),
     event: EventType = EventType(Random.nextInt(EventType.maxId)),
-    userIds: Set[String] = Set(UUID.randomUUID.toString, UUID.randomUUID.toString)
+    userIds: Set[UserId] = Set(UserId(UUID.randomUUID.toString), UserId(UUID.randomUUID.toString))
   ): Event =
     Event(
       id = id,
@@ -32,8 +42,8 @@ object DataGenerator {
     )
 
   def generateRandomUpdateEvent(
-    id: UUID = UUID.randomUUID,
-    userIds: Set[String] = Set(UUID.randomUUID.toString)
+    id: EventId = EventId(UUID.randomUUID),
+    userIds: Set[UserId] = Set(UserId(UUID.randomUUID.toString))
   ): UpdateEvent =
     UpdateEvent(
       id = id,
@@ -41,11 +51,13 @@ object DataGenerator {
     )
 
   def generateRandomUser(
-    linkedUserIds: Set[String] = Set(UUID.randomUUID.toString),
+    id: UserIdentifier = UserIdentifier(UUID.randomUUID),
+    linkedUserIds: Set[UserId] = Set(UserId(UUID.randomUUID.toString)),
     events: Set[Event] = Set(generateRandomEvent()),
     sources: Set[Source] = Set(Source(Random.nextInt(Source.maxId)))
   ): User =
     User(
+      id = id,
       linkedUserIds = linkedUserIds,
       events = events,
       sources = sources
@@ -55,6 +67,7 @@ object DataGenerator {
     event: Event
   ): User =
     User(
+      id = UserIdentifier(UUID.randomUUID),
       linkedUserIds = event.userIds,
       events = Set(event),
       sources = Set(event.source)

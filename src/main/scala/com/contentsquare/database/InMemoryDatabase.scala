@@ -1,12 +1,16 @@
 package com.contentsquare.database
 import com.contentsquare.error.Errors.DataNotFoundException
+import com.contentsquare.model.Identifiers.{EventId, Id, UserId, UserIdentifier}
 import com.contentsquare.model.{Event, UpdateEvent, User}
 import zio._
 
 import java.util.UUID
 import scala.collection.mutable
 
-final case class InMemoryDatabase(database: mutable.HashMap[Set[String], User]) extends Database {
+final case class InMemoryDatabase(
+  links: mutable.HashMap[Id, UserIdentifier],
+  users: mutable.HashMap[UserIdentifier, User]
+) extends Database {
 
   /**
    * Returns an effect that produces an [[User]] with [[Event]] given in input
@@ -14,6 +18,7 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], User]) 
   private[database] def createUserWithSingleEvent(event: Event): UIO[User] =
     ZIO.succeed(
       User(
+        id = UserIdentifier(UUID.randomUUID),
         linkedUserIds = event.userIds,
         events = Set(event),
         sources = Set(event.source)
@@ -25,7 +30,7 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], User]) 
    * eventId given in input. It may fail with [[DataNotFoundException]] if
    * eventId is not in [[User]].
    */
-  private[database] def getEventFromUser(user: User, eventId: UUID): Task[Event] =
+  private[database] def getEventFromUser(user: User, eventId: EventId): Task[Event] =
     ZIO
       .fromOption(user.events.find(_.id == eventId))
       .orElseFail(DataNotFoundException(s"Event $eventId not found"))
@@ -34,23 +39,29 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], User]) 
    * Returns an effect that produces a map of users that have at one userId in
    * common with the input parameter.
    */
-  private[database] def getLinkedUsers(userIds: Set[String]): ZIO[Any, Nothing, Map[Set[String], User]] =
+  private[database] def getLinkedUserIdentifiers(userIds: Set[UserId]): ZIO[Any, Nothing, Set[UserIdentifier]] =
     ZIO
       .succeed(
-        database
-          .filter(userEvent => userIds.intersect(userEvent._1).nonEmpty)
-          .toMap
+        userIds.flatMap(userId => links.get(userId.asInstanceOf[Id]))
+      )
+
+  private[database] def getUsers(userIdentifiers: Set[UserIdentifier]): ZIO[Any, Nothing, List[User]] =
+    ZIO
+      .succeed(
+        userIdentifiers.flatMap(users.get).toList
       )
 
   /**
    * Returns an effect that produces a tuple (key, [[User]]) that contains the
    * eventId given in input parameter.
    */
-  private[database] def getUserAssociatedToEventId(eventId: UUID): ZIO[Any, Throwable, (Set[String], User)] =
+  private[database] def getUserAssociatedToEventId(eventId: EventId): ZIO[Any, Throwable, User] =
     ZIO
-      .fromOption(database.find { case (_, user) =>
-        user.events.exists(_.id == eventId)
-      })
+      .fromOption(
+        links
+          .get(eventId.asInstanceOf[Id])
+          .flatMap(users.get)
+      )
       .orElseFail(DataNotFoundException(s"Event $eventId doesn't exist"))
 
   /**
@@ -58,7 +69,7 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], User]) 
    * with the events given in input.
    */
   private[database] def insertMultipleEvents(events: Set[Event]): UIO[Unit] =
-    ZIO.foreach(events)(insertEvent).unit
+    ZIO.foreachPar(events)(insertEvent).unit
 
   /**
    * Returns an effect that produces an [[User]] that has merged all the users
@@ -66,7 +77,7 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], User]) 
    */
   private[database] def mergeUsers(users: List[User]): ZIO[Any, Nothing, User] =
     ZIO.succeed(
-      users.foldLeft(User())((acc, user) =>
+      users.foldLeft(User(id = UserIdentifier(UUID.randomUUID)))((acc, user) =>
         acc.copy(
           linkedUserIds = acc.linkedUserIds.union(user.linkedUserIds),
           events = acc.events ++ user.events,
@@ -79,39 +90,77 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], User]) 
    * Returns an effect that will remove the [[User]] corresponding to the key
    * given in input.
    */
-  private[database] def removeUser(userIds: Set[String]): ZIO[Any, Nothing, Option[User]] =
-    ZIO.succeed(database.remove(userIds))
+  private[database] def removeUser(userIdentifier: UserIdentifier): ZIO[Any, Nothing, Option[User]] =
+    ZIO.succeed(users.remove(userIdentifier))
 
   /**
    * Returns an effect that will remove multiple [[User]] corresponding to the
    * keys given in input by calling [[removeUser]].
    */
-  private[database] def removeUsers(usersIds: Iterable[Set[String]]): ZIO[Any, Nothing, Unit] =
-    ZIO.succeed(usersIds.foreach(database.remove))
+  private[database] def removeUsers(userIdentifiers: Iterable[UserIdentifier]): ZIO[Any, Nothing, Unit] =
+    ZIO.succeed(userIdentifiers.foreach(users.remove))
+
+  private[database] def removeIdsFromLinks(ids: Set[Id]): ZIO[Any, Nothing, Unit] =
+    ZIO.succeed(ids.foreach(links.remove))
+
+  private[database] def removeUserIdsFromLinks(userIds: Set[UserId]): ZIO[Any, Nothing, Unit] =
+    ZIO.succeed(userIds.foreach(userId => links.remove(userId.asInstanceOf[Id])))
+
+  private[database] def removeEventIdsFromLinks(events: Set[Event]): ZIO[Any, Nothing, Unit] =
+    ZIO.succeed(events.foreach(event => links.remove(event.id.asInstanceOf[Id])))
+
+  private[database] def removeUserLinks(user: User): UIO[Unit] =
+    for {
+      _ <- removeIdsFromLinks(user.linkedUserIds.asInstanceOf[Set[Id]])
+      _ <- removeIdsFromLinks(user.events.map(_.id.asInstanceOf[Id]))
+    } yield ()
+
+  private[database] def removeUsersLinks(users: List[User]): ZIO[Any, Nothing, Unit] =
+    ZIO
+      .foreachPar(users)(removeUserLinks)
+      .unit
 
   /**
    * Returns an effect that will update the [[Event]] and updatedUserIds given
    * in input and produces the updated [[Event]].
    */
-  private[database] def updateEventValues(event: Event, updatedUserIds: Set[String]): UIO[Event] =
+  private[database] def updateEventValues(event: Event, updatedUserIds: Set[UserId]): UIO[Event] =
     ZIO.succeed(event.copy(userIds = updatedUserIds))
+
+  private[database] def insertIdsIntoLinks(ids: Set[Id], userIdentifier: UserIdentifier): ZIO[Any, Nothing, Unit] =
+    ZIO.succeed(ids.foreach(id => links.put(id, userIdentifier)))
+
+  private[database] def insertUserLinks(user: User): UIO[Unit] = {
+    for {
+      _ <- insertIdsIntoLinks(user.linkedUserIds.asInstanceOf[Set[Id]], user.id)
+      _ <- insertIdsIntoLinks(user.events.map(_.id.asInstanceOf[Id]), user.id)
+    } yield ()
+  }
+
+//  override def existsEventWithUUID(id: UUID): UIO[Boolean] =
+//    ZIO.succeed(
+//      links.contains(EventId(id).asInstanceOf[Id])
+//    )
 
   /**
    * Returns an effect that will check if the event id given in input exists in
    * the database and produces True if it exists, False if it doesn't.
    */
-  override def existsEvent(id: UUID): UIO[Boolean] =
+  override def existsEvent(id: EventId): UIO[Boolean] =
     ZIO.succeed(
-      database.exists { case (_, user) =>
-        user.events.exists(_.id == id)
-      }
+      links.contains(id.asInstanceOf[Id])
+    )
+
+  override def getLinks: UIO[Map[Id, UserIdentifier]] =
+    ZIO.succeed(
+      links.toMap
     )
 
   /**
    * Returns an effect that produces a list of [[User]] present in the database.
    */
-  override def getUsers: UIO[List[User]] =
-    ZIO.succeed(database.values.toList)
+  override def getUniqueUsers: UIO[List[User]] =
+    ZIO.succeed(users.values.toList)
 
   /**
    * Returns an effect that insert an [[Event]] given in input into database.
@@ -122,11 +171,14 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], User]) 
    */
   override def insertEvent(event: Event): ZIO[Any, Nothing, Unit] =
     for {
-      userWithSingleEvent <- createUserWithSingleEvent(event)
-      linkedUsers         <- getLinkedUsers(event.userIds)
-      _                   <- removeUsers(linkedUsers.keys)
-      mergedUsers         <- mergeUsers(linkedUsers.values.toList :+ userWithSingleEvent)
-    } yield database.put(mergedUsers.linkedUserIds, mergedUsers)
+      userWithSingleEvent   <- createUserWithSingleEvent(event)
+      linkedUserIdentifiers <- getLinkedUserIdentifiers(event.userIds)
+      linkedUsers           <- getUsers(linkedUserIdentifiers)
+      _                     <- removeUsers(linkedUserIdentifiers)
+      _                     <- removeUsersLinks(linkedUsers)
+      mergedUser            <- mergeUsers(linkedUsers :+ userWithSingleEvent)
+      _                     <- insertUserLinks(mergedUser)
+    } yield users.put(mergedUser.id, mergedUser)
 
   /**
    * Returns an effect that update an [[Event]] with an [[UpdateEvent]] given in
@@ -140,11 +192,12 @@ final case class InMemoryDatabase(database: mutable.HashMap[Set[String], User]) 
   override def updateEvent(updateEvent: UpdateEvent): Task[Unit] =
     for {
       userAssociated         <- getUserAssociatedToEventId(updateEvent.id)
-      _                      <- removeUser(userAssociated._1)
-      eventToUpdate          <- getEventFromUser(userAssociated._2, updateEvent.id)
+      _                      <- removeUser(userAssociated.id)
+      _                      <- removeUserLinks(userAssociated)
+      eventToUpdate          <- getEventFromUser(userAssociated, updateEvent.id)
       eventWithUpdatedValues <- updateEventValues(eventToUpdate, updateEvent.userIds)
       _                      <- insertMultipleEvents(
-        (userAssociated._2.events - eventToUpdate) + eventWithUpdatedValues
+        (userAssociated.events - eventToUpdate) + eventWithUpdatedValues
       )
     } yield ()
 
@@ -156,6 +209,8 @@ object InMemoryDatabase {
    * InMemoryDatabase default layer
    */
   val layer: ZLayer[Any, Nothing, InMemoryDatabase] =
-    ZLayer.succeed(InMemoryDatabase(mutable.HashMap.empty[Set[String], User]))
+    ZLayer.succeed(
+      InMemoryDatabase(mutable.HashMap.empty[Id, UserIdentifier], mutable.HashMap.empty[UserIdentifier, User])
+    )
 
 }
