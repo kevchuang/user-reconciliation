@@ -8,6 +8,8 @@ lazy val root = (project in file("."))
   .settings(standardSettings)
   .settings(
     libraryDependencies ++= Seq(
+      `akka-actor`,
+      `akka-stream`,
       `circe-core`,
       `circe-generic`,
       `circe-parser`,
