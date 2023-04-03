@@ -1,12 +1,11 @@
 package com.contentsquare.database
 
+import com.contentsquare.model.Identifiers.EventId
 import com.contentsquare.model.{Event, UpdateEvent, User}
 import zio.{Task, UIO, ZIO}
 
-import java.util.UUID
-
 trait Database {
-  def existsEvent(id: UUID): UIO[Boolean]
+  def existsEvent(id: EventId): UIO[Boolean]
 
   def getUsers: UIO[List[User]]
 
@@ -16,7 +15,7 @@ trait Database {
 }
 
 object Database {
-  def existsEvent(id: UUID): ZIO[Database, Nothing, Boolean] =
+  def existsEvent(id: EventId): ZIO[Database, Nothing, Boolean] =
     ZIO.serviceWithZIO[Database](_.existsEvent(id))
 
   def getUsers: ZIO[Database, Nothing, List[User]] =

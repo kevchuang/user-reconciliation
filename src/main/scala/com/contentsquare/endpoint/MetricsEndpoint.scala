@@ -2,6 +2,8 @@ package com.contentsquare.endpoint
 
 import com.contentsquare.database.Database
 import com.contentsquare.model.{EventType, Metrics, User}
+import com.contentsquare.service.buffer.MetricsRequestBuffer
+import com.contentsquare.service.buffer.MetricsRequestBuffer.MetricsRequestBuffer
 import io.circe.syntax._
 import zio._
 import zio.http._
@@ -49,11 +51,16 @@ object MetricsEndpoint {
    * Returns a [[App]] that catches GET /metrics request and produces a
    * [[Response]] containing [[Metrics]] in json format.
    */
-  def apply(): App[Database] =
+  def apply(): App[Database & MetricsRequestBuffer] =
     Http
       .collectZIO[Request] {
         // GET /metrics
-        case Method.GET -> !! / "metrics" => getMetrics
+        case Method.GET -> !! / "metrics" =>
+          for {
+            _        <- MetricsRequestBuffer.add
+            response <- getMetrics
+            _        <- MetricsRequestBuffer.remove
+          } yield response
       }
       .withDefaultErrorResponse
 }

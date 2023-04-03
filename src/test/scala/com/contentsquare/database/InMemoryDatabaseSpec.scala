@@ -1,6 +1,7 @@
 package com.contentsquare.database
 
 import com.contentsquare.error.Errors.DataNotFoundException
+import com.contentsquare.model.Identifiers._
 import com.contentsquare.model.User
 import com.contentsquare.utils.DataGenerator
 import zio.test.Assertion._
@@ -28,7 +29,7 @@ object InMemoryDatabaseSpec extends ZIOSpecDefault {
   private lazy val createUserWithSingleEventSuite =
     suite("createUserWithSingleEvent")(
       test("should return an User with event gave as input") {
-        val database = InMemoryDatabase(mutable.HashMap.empty[Set[String], User])
+        val database = InMemoryDatabase(mutable.HashMap.empty[UserIdentifier, User])
         val event    = DataGenerator.generateRandomEvent()
         val expected = DataGenerator.generateRandomUser(event.userIds, Set(event), Set(event.source))
 
@@ -39,17 +40,17 @@ object InMemoryDatabaseSpec extends ZIOSpecDefault {
   private lazy val getEventFromUserSuite =
     suite("getEventFromUser")(
       test("should return an Event in User") {
-        val database = InMemoryDatabase(mutable.HashMap.empty[Set[String], User])
+        val database = InMemoryDatabase(mutable.HashMap.empty[UserIdentifier, User])
         val event    = DataGenerator.generateRandomEvent()
         val user     = DataGenerator.generateRandomUser(event.userIds, Set(event), Set(event.source))
 
         assertZIO(database.getEventFromUser(user, event.id))(equalTo(event))
       },
       test("should fail with DataNotFoundException if User doesn't contain the event") {
-        val database = InMemoryDatabase(mutable.HashMap.empty[Set[String], User])
+        val database = InMemoryDatabase(mutable.HashMap.empty[UserIdentifier, User])
         val user     = DataGenerator.generateRandomUser()
 
-        assertZIO(database.getEventFromUser(user, UUID.randomUUID).exit)(
+        assertZIO(database.getEventFromUser(user, EventId(UUID.randomUUID)).exit)(
           fails(isSubtype[DataNotFoundException](anything))
         )
       }
@@ -58,12 +59,17 @@ object InMemoryDatabaseSpec extends ZIOSpecDefault {
   private lazy val getLinkedUsersSuite =
     suite("getLinkedUsers")(
       test("should return a Map containing Users that share the same userIds") {
-        val sharedId   = UUID.randomUUID.toString
-        val firstUser  = DataGenerator.generateRandomUser(linkedUserIds = Set(UUID.randomUUID.toString, sharedId))
+        val sharedId   = UserId(UUID.randomUUID.toString)
+        val firstUser  =
+          DataGenerator.generateRandomUser(linkedUserIds = Set(UserId(UUID.randomUUID.toString), sharedId))
         val secondUser = DataGenerator.generateRandomUser()
-        val thirdUser  = DataGenerator.generateRandomUser(linkedUserIds = Set(UUID.randomUUID.toString, sharedId))
+        val thirdUser  =
+          DataGenerator.generateRandomUser(linkedUserIds = Set(UserId(UUID.randomUUID.toString), sharedId))
         val database   = DataGenerator.generateInMemoryDatabase(List(firstUser, secondUser, thirdUser))
-        val expected   = Map(firstUser.linkedUserIds -> firstUser, thirdUser.linkedUserIds -> thirdUser)
+        val expected   = Map(
+          UserIdentifier(firstUser.linkedUserIds) -> firstUser,
+          UserIdentifier(thirdUser.linkedUserIds) -> thirdUser
+        )
 
         assertZIO(database.getLinkedUsers(Set(sharedId)))(equalTo(expected))
       },
@@ -72,9 +78,9 @@ object InMemoryDatabaseSpec extends ZIOSpecDefault {
         val secondUser = DataGenerator.generateRandomUser()
         val thirdUser  = DataGenerator.generateRandomUser()
         val database   = DataGenerator.generateInMemoryDatabase(List(firstUser, secondUser, thirdUser))
-        val expected   = Map.empty[Set[String], User]
+        val expected   = Map.empty[UserIdentifier, User]
 
-        assertZIO(database.getLinkedUsers(Set(UUID.randomUUID.toString)))(equalTo(expected))
+        assertZIO(database.getLinkedUsers(Set(UserId(UUID.randomUUID.toString))))(equalTo(expected))
       }
     )
 
@@ -89,7 +95,7 @@ object InMemoryDatabaseSpec extends ZIOSpecDefault {
         val secondUser = DataGenerator.generateRandomUser()
         val thirdUser  = DataGenerator.generateRandomUser()
         val database   = DataGenerator.generateInMemoryDatabase(List(firstUser, secondUser, thirdUser))
-        val expected   = (event.userIds, firstUser)
+        val expected   = (UserIdentifier(event.userIds), firstUser)
 
         assertZIO(database.getUserAssociatedToEventId(event.id))(equalTo(expected))
       },
@@ -98,7 +104,7 @@ object InMemoryDatabaseSpec extends ZIOSpecDefault {
         val secondUser = DataGenerator.generateRandomUser()
         val database   = DataGenerator.generateInMemoryDatabase(List(firstUser, secondUser))
 
-        assertZIO(database.getUserAssociatedToEventId(UUID.randomUUID).exit)(
+        assertZIO(database.getUserAssociatedToEventId(EventId(UUID.randomUUID)).exit)(
           fails(isSubtype[DataNotFoundException](anything))
         )
       }
@@ -136,7 +142,7 @@ object InMemoryDatabaseSpec extends ZIOSpecDefault {
 
         for {
           existsInDatabase <- ZIO.succeed(database.database.exists(_._1 == firstUser.linkedUserIds))
-          removedUser      <- database.removeUser(firstUser.linkedUserIds)
+          removedUser      <- database.removeUser(UserIdentifier(firstUser.linkedUserIds))
           isRemoved        <- ZIO.succeed(!database.database.exists(_._1 == firstUser.linkedUserIds))
         } yield assert(removedUser)(equalTo(Option(firstUser))) &&
           assertTrue(existsInDatabase, isRemoved)
@@ -146,7 +152,7 @@ object InMemoryDatabaseSpec extends ZIOSpecDefault {
         val secondUser = DataGenerator.generateRandomUser()
         val database   = DataGenerator.generateInMemoryDatabase(List(firstUser))
 
-        assertZIO(database.removeUser(secondUser.linkedUserIds))(equalTo(None))
+        assertZIO(database.removeUser(UserIdentifier(secondUser.linkedUserIds)))(equalTo(None))
       }
     )
 
@@ -160,7 +166,9 @@ object InMemoryDatabaseSpec extends ZIOSpecDefault {
         for {
           firstUserExists     <- ZIO.succeed(database.database.exists(_._1 == firstUser.linkedUserIds))
           secondUserExists    <- ZIO.succeed(database.database.exists(_._1 == secondUser.linkedUserIds))
-          _                   <- database.removeUsers(List(firstUser.linkedUserIds, secondUser.linkedUserIds))
+          _                   <- database.removeUsers(
+            List(UserIdentifier(firstUser.linkedUserIds), UserIdentifier(secondUser.linkedUserIds))
+          )
           firstUserIsRemoved  <- ZIO.succeed(!database.database.exists(_._1 == firstUser.linkedUserIds))
           secondUserIsRemoved <- ZIO.succeed(!database.database.exists(_._1 == secondUser.linkedUserIds))
         } yield assertTrue(firstUserExists, secondUserExists, firstUserIsRemoved, secondUserIsRemoved)
@@ -171,7 +179,7 @@ object InMemoryDatabaseSpec extends ZIOSpecDefault {
     suite("updateEventValues")(
       test("should update userIds field in Event") {
         val event    = DataGenerator.generateRandomEvent()
-        val userIds  = Set(UUID.randomUUID.toString)
+        val userIds  = Set(UserId(UUID.randomUUID.toString))
         val expected = event.copy(userIds = userIds)
         val database = DataGenerator.generateInMemoryDatabase()
 
@@ -222,11 +230,13 @@ object InMemoryDatabaseSpec extends ZIOSpecDefault {
         } yield assertTrue(eventInserted)
       },
       test("should insert an event by merging linked users") {
-        val firstLink  = UUID.randomUUID.toString
-        val secondLink = UUID.randomUUID.toString
+        val firstLink  = UserId(UUID.randomUUID.toString)
+        val secondLink = UserId(UUID.randomUUID.toString)
         val event      = DataGenerator.generateRandomEvent(userIds = Set(firstLink, secondLink))
-        val firstUser  = DataGenerator.generateRandomUser(linkedUserIds = Set(firstLink, UUID.randomUUID.toString))
-        val secondUser = DataGenerator.generateRandomUser(linkedUserIds = Set(secondLink, UUID.randomUUID.toString))
+        val firstUser  =
+          DataGenerator.generateRandomUser(linkedUserIds = Set(firstLink, UserId(UUID.randomUUID.toString)))
+        val secondUser =
+          DataGenerator.generateRandomUser(linkedUserIds = Set(secondLink, UserId(UUID.randomUUID.toString)))
         val database   = DataGenerator.generateInMemoryDatabase(List(firstUser, secondUser))
         val expected   = User(
           linkedUserIds = event.userIds.union(firstUser.linkedUserIds).union(secondUser.linkedUserIds),
@@ -262,12 +272,12 @@ object InMemoryDatabaseSpec extends ZIOSpecDefault {
           assert(updatedUsers)(hasSameElements(List(updatedUser)))
       },
       test("should update event and remake event linking") {
-        val firstLink  = UUID.randomUUID.toString
-        val secondLink = UUID.randomUUID.toString
+        val firstLink  = UserId(UUID.randomUUID.toString)
+        val secondLink = UserId(UUID.randomUUID.toString)
 
         val event       = DataGenerator.generateRandomEvent(userIds = Set(firstLink, secondLink))
-        val firstEvent  = DataGenerator.generateRandomEvent(userIds = Set(firstLink, UUID.randomUUID.toString))
-        val secondEvent = DataGenerator.generateRandomEvent(userIds = Set(secondLink, UUID.randomUUID.toString))
+        val firstEvent  = DataGenerator.generateRandomEvent(userIds = Set(firstLink, UserId(UUID.randomUUID.toString)))
+        val secondEvent = DataGenerator.generateRandomEvent(userIds = Set(secondLink, UserId(UUID.randomUUID.toString)))
 
         val firstUser   = DataGenerator.generateUserFromEvent(firstEvent)
         val secondUser  = DataGenerator.generateUserFromEvent(secondEvent)

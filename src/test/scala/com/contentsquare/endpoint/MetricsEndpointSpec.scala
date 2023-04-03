@@ -1,6 +1,7 @@
 package com.contentsquare.endpoint
 
 import com.contentsquare.database.{Database, InMemoryDatabase}
+import com.contentsquare.model.Identifiers.UserId
 import com.contentsquare.model.{EventType, Metrics, Source, User}
 import com.contentsquare.utils.DataGenerator
 import io.circe.syntax._
@@ -62,7 +63,7 @@ object MetricsEndpointSpec extends ZIOSpecDefault {
         val firstUserEventDisplay  =
           DataGenerator.generateRandomEvent(source = Source.appscreen, event = EventType.display)
         val firstUserEventBuy      = DataGenerator.generateRandomEvent(
-          userIds = firstUserEventDisplay.userIds + UUID.randomUUID.toString,
+          userIds = firstUserEventDisplay.userIds + UserId(UUID.randomUUID.toString),
           source = Source.webpage,
           event = EventType.buy
         )
