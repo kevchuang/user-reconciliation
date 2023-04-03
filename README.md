@@ -92,8 +92,13 @@ build serverless microservices using AWS Lambda.
 
 **If you had a team of developers to work on this project, how would you organize it ?**
 
-Admitting that the business needs is to implement new API endpoints, I think that each developer can work on a different endpoint.
-We could also separate the product related and performance / bug related tasks, but I believe that developers should be able to do any tasks !
+I think that I would organize the team so each developer would work on a specific domain. The processing steps for an event are:
+- Collecting upcoming event
+- Validate event
+- Merging events
+- Inserting events into database
+
+Each developer would work on a specific step of the process.
 
 ## Contact
 
