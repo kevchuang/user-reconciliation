@@ -3,14 +3,14 @@ package com.contentsquare.endpoint
 import com.contentsquare.database.Database
 import com.contentsquare.error.Errors.DataNotFoundException
 import com.contentsquare.model.{Event, UpdateEvent}
-import com.contentsquare.request.RequestBuffer
-import com.contentsquare.request.RequestBuffer.RequestBuffer
-import com.contentsquare.service.Parser
-import com.contentsquare.service.Parser.Parser
+import com.contentsquare.service.buffer.EventRequestBuffer.EventRequestBuffer
+import com.contentsquare.service.buffer.MetricsRequestBuffer.MetricsRequestBuffer
+import com.contentsquare.service.buffer.{EventRequestBuffer, MetricsRequestBuffer}
+import com.contentsquare.service.parser.Parser
+import com.contentsquare.service.parser.Parser.Parser
 import zio._
 import zio.http._
 import zio.http.model.Method
-import zio.stream.ZSink
 
 object EventEndpoint {
 
@@ -19,25 +19,12 @@ object EventEndpoint {
    * event data and insert it into Database, it produces a [[Response]] ok once
    * the insert is completed.
    */
-  def insertEventIntoDatabase(request: Request): ZIO[Database & Parser, Throwable, Response] =
+  private[endpoint] def insertEventIntoDatabase(request: Request): ZIO[Database & Parser, Throwable, Response] =
     for {
       event          <- Parser.parseBody[Event](request.body)
       validatedEvent <- event.validateEvent
       _              <- Database.insertEvent(validatedEvent)
     } yield Response.ok
-
-  /**
-   * Sink that takes a [[Request]] and call [[insertEventIntoDatabase]] and
-   * return its [[Response]].
-   */
-  private[endpoint] def insertEventSink(): ZSink[Database & Parser, Throwable, Request, Request, Response] =
-    ZSink
-      .take[Request](1)
-      .map(_.headOption)
-      .mapZIO {
-        case Some(request) => insertEventIntoDatabase(request)
-        case None          => ZIO.succeed(Response.ok)
-      }
 
   /**
    * Returns an effect that will parse request body into UpdateEvent, validate
@@ -52,48 +39,42 @@ object EventEndpoint {
     } yield Response.ok
 
   /**
-   * Sink that takes a [[Request]] and call [[updateEventInDatabase]] and return
-   * its Response.
+   * Takes as input an event request to process. It will first verify if event
+   * request buffer or metrics request buffer has reached its limit. If one of
+   * them has reached limit, it will pause the request for 50 milliseconds to
+   * avoid overloading the server. It will then add one to event request buffer
+   * and process the event request. Before, returning response it will remove
+   * one from event request buffer.
    */
-  private[endpoint] def updateEventSink(): ZSink[Database & Parser, Throwable, Request, Request, Response] =
-    ZSink
-      .take[Request](1)
-      .map(_.headOption)
-      .mapZIO {
-        case Some(request) => updateEventInDatabase(request)
-        case None          => ZIO.succeed(Response.ok)
-      }
+  private[endpoint] def runEventRequest(
+    eventRequest: ZIO[Database & Parser, Throwable, Response]
+  ): ZIO[Database & EventRequestBuffer & MetricsRequestBuffer & Parser, Throwable, Response] =
+    for {
+      hasReachedMetricsRequestLimit <- MetricsRequestBuffer.hasReachedLimit
+      hasReachedEventRequestLimit   <- EventRequestBuffer.hasReachedLimit
+      _        <- ZIO.sleep(50.milliseconds).unless(!hasReachedEventRequestLimit && !hasReachedMetricsRequestLimit)
+      _        <- EventRequestBuffer.add
+      response <- eventRequest
+      _        <- EventRequestBuffer.remove
+    } yield response
 
   /**
    * Creates a [[App]] app that catches POST /collect and POST /update requests.
    */
-  def apply(): App[Database & Parser & RequestBuffer] = {
+  def apply(): App[Database & Parser & EventRequestBuffer & MetricsRequestBuffer] = {
     Http
       .collectZIO[Request] {
         // POST /collect
         case request @ Method.POST -> !! / "collect" =>
-          (for {
-            hasReachedMetricsRequestLimit <- RequestBuffer.hasReachedMetricsRequestLimit
-            hasReachedEventRequestLimit   <- RequestBuffer.hasReachedEventRequestLimit
-            _        <- ZIO.sleep(1.milliseconds).unless(!hasReachedEventRequestLimit)
-            _        <- ZIO.sleep(100.milliseconds).unless(!hasReachedMetricsRequestLimit)
-            _        <- RequestBuffer.addEventRequestIntoBuffer()
-            response <- insertEventIntoDatabase(request)
-            _        <- RequestBuffer.removeEventRequestFromBuffer()
-          } yield response).logError
-        // POST /update  - Scheduling update request to make sure that event is inserted first when receiving 1000 requests per second
+          runEventRequest(insertEventIntoDatabase(request)).logError
+        // POST /update
         case request @ Method.POST -> !! / "update"  =>
-          (for {
-            hasReachedMetricsRequestLimit <- RequestBuffer.hasReachedMetricsRequestLimit
-            hasReachedEventRequestLimit   <- RequestBuffer.hasReachedEventRequestLimit
-            _        <- ZIO.sleep(20.milliseconds).unless(!hasReachedMetricsRequestLimit && !hasReachedEventRequestLimit)
-            _        <- RequestBuffer.addEventRequestIntoBuffer()
-            response <- updateEventInDatabase(request).retryWhile {
+          runEventRequest(
+            updateEventInDatabase(request).retryWhile {
               case _: DataNotFoundException => true
               case _                        => false
             }
-            _        <- RequestBuffer.removeEventRequestFromBuffer()
-          } yield response).logError
+          ).logError
 
       }
       .mapError(_ => Response.ok)

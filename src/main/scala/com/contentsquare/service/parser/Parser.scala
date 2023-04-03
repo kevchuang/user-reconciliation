@@ -1,4 +1,4 @@
-package com.contentsquare.service
+package com.contentsquare.service.parser
 
 import com.contentsquare.error.Errors.InvalidInputDataException
 import io.circe.Decoder

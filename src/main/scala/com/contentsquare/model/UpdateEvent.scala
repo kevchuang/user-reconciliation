@@ -2,15 +2,14 @@ package com.contentsquare.model
 
 import com.contentsquare.database.Database
 import com.contentsquare.error.Errors.{DataNotFoundException, EmptyValueException}
+import com.contentsquare.model.Identifiers.{EventId, UserId}
 import io.circe.generic.semiauto._
 import io.circe.{Decoder, Encoder}
 import zio.ZIO
 
-import java.util.UUID
-
 final case class UpdateEvent(
-  id: UUID,
-  userIds: Set[String]
+  id: EventId,
+  userIds: Set[UserId]
 )
 
 object UpdateEvent {

@@ -1,4 +1,4 @@
-package com.contentsquare.service
+package com.contentsquare.service.parser
 
 import com.contentsquare.error.Errors.InvalidInputDataException
 import com.contentsquare.model.Event
@@ -6,8 +6,8 @@ import com.contentsquare.utils.DataGenerator
 import io.circe.syntax._
 import zio.Scope
 import zio.http.Body
-import zio.test.Assertion._
-import zio.test._
+import zio.test.Assertion.{anything, equalTo, fails, isSubtype}
+import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assertZIO}
 
 object ParserSpec extends ZIOSpecDefault {
   override def spec: Spec[TestEnvironment with Scope, Any] =
