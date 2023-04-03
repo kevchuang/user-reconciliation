@@ -1,6 +1,7 @@
 package com.contentsquare.model
 
 import com.contentsquare.error.Errors.EmptyValueException
+import com.contentsquare.model.Identifiers.UserId
 import com.contentsquare.utils.DataGenerator
 import zio.Scope
 import zio.test.Assertion._
@@ -18,7 +19,7 @@ object EventSpec extends ZIOSpecDefault {
         assertZIO(event.validateEvent)(equalTo(event))
       },
       test("should fail with EmptyValueException if usersIds is empty") {
-        val event = DataGenerator.generateRandomEvent(userIds = Set.empty[String])
+        val event = DataGenerator.generateRandomEvent(userIds = Set.empty[UserId])
 
         assertZIO(event.validateEvent.exit)(fails(isSubtype[EmptyValueException](anything)))
       }

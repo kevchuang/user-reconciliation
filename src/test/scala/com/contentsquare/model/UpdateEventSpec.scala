@@ -2,6 +2,7 @@ package com.contentsquare.model
 
 import com.contentsquare.database.{Database, InMemoryDatabase}
 import com.contentsquare.error.Errors.{DataNotFoundException, EmptyValueException}
+import com.contentsquare.model.Identifiers.UserId
 import com.contentsquare.utils.DataGenerator
 import zio.Scope
 import zio.test.Assertion._
@@ -23,7 +24,7 @@ object UpdateEventSpec extends ZIOSpecDefault {
         } yield assert(validatedUpdatedEvent)(equalTo(updateEvent))
       },
       test("should fail with EmptyValueException if userIds is not set") {
-        val updateEvent = DataGenerator.generateRandomUpdateEvent(userIds = Set.empty[String])
+        val updateEvent = DataGenerator.generateRandomUpdateEvent(userIds = Set.empty[UserId])
 
         assertZIO(updateEvent.validateUpdateEvent.exit)(fails(isSubtype[EmptyValueException](anything)))
       },
